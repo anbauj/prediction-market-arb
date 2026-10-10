@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arbitrage Engine | Prediction Market Detection Pipeline</title>
+    <!-- Google Fonts & FontAwesome Icons -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Top Navigation Header -->
+        <header class="top-header">
+            <div class="logo-brand">
+                <div class="logo-icon"><i class="fa-solid fa-bolt-lightning"></i></div>
+                <div class="brand-titles">
+                    <h1>DELTA-X <span>ARBITRAGE</span></h1>
+                    <p class="subtitle">Multi-Venue Detection-First Pipeline</p>
+                </div>
+            </div>
+
+            <!-- Global Status Bar -->
+            <div class="header-metrics">
+                <div class="metric-chip">
+                    <span class="chip-label">ACTIVE VENUES</span>
+                    <span class="chip-val"><i class="fa-solid fa-circle text-emerald"></i> Kalshi | Poly | ProphetX</span>
+                </div>
+                <div class="metric-chip">
+                    <span class="chip-label">TOTAL MARKETS</span>
+                    <span class="chip-val" id="stat-total-markets">--</span>
+                </div>
+                <div class="metric-chip">
+                    <span class="chip-label">VERIFIED PAIRS</span>
+                    <span class="chip-val text-amber" id="stat-verified-pairs">--</span>
+                </div>
+                <div class="metric-chip highlight-chip">
+                    <span class="chip-label">PAPER PnL</span>
+                    <span class="chip-val text-emerald" id="stat-paper-pnl">$0.00</span>
+                </div>
+            </div>
+
+            <div class="header-actions">
+                <button id="btn-refresh" class="btn btn-outline"><i class="fa-solid fa-rotate-right"></i> Poll Feeds</button>
+                <div class="auto-poll-toggle">
+                    <label class="switch">
+                        <input type="checkbox" id="toggle-autopoll" checked>
+                        <span class="slider round"></span>
+                    </label>
+                    <span class="toggle-text">Live 3s</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Pipeline Stage Navigation Tabs -->
+        <nav class="pipeline-nav">
+            <button class="nav-tab active" data-tab="tab-scanner">
+                <span class="stage-num">STAGE 1 & 3</span>
+                <span class="stage-title"><i class="fa-solid fa-chart-line"></i> Arbitrage Scanner & Depth</span>
+            </button>
+            <button class="nav-tab" data-tab="tab-matching">
+                <span class="stage-num">STAGE 2</span>
+                <span class="stage-title"><i class="fa-solid fa-code-compare"></i> Event Matcher & Audit</span>
+                <span class="badge badge-amber" id="nav-pending-count">0</span>
+            </button>
+            <button class="nav-tab" data-tab="tab-paper">
+                <span class="stage-num">STAGE 4</span>
+                <span class="stage-title"><i class="fa-solid fa-flask"></i> Paper Trade & Edge Realization</span>
+            </button>
+            <button class="nav-tab tab-coral" data-tab="tab-stage5">
+                <span class="stage-num">STAGE 5</span>
+                <span class="stage-title"><i class="fa-solid fa-shield-halved"></i> Execution Engine (Locked)</span>
+            </button>
+        </nav>
+
+        <!-- Main Body Content Areas -->
+        <main class="main-content">
+            
+            <!-- STAGE 1 & 3: ARBITRAGE SCANNER & ORDER BOOK DEPTH -->
+            <section id="tab-scanner" class="tab-pane active">
+                <div class="pane-header">
+                    <div class="pane-title">
+                        <h2><i class="fa-solid fa-crosshairs text-emerald"></i> Live Arbitrage Opportunities</h2>
+                        <p>Computed after order book depth walking, Kalshi taker fees, Polymarket gas/bridge friction, and capital lockup duration.</p>
+                    </div>
+
+                    <!-- Capital Filter Slider -->
+                    <div class="capital-selector-card">
+                        <label for="capital-slider"><i class="fa-solid fa-wallet"></i> Simulated Capital Target:</label>
+                        <span class="slider-value" id="capital-val">$1,000</span>
+                        <input type="range" id="capital-slider" min="100" max="10000" step="100" value="1000">
+                    </div>
+                </div>
+
+                <div class="scanner-grid">
+                    <!-- Table of Opportunities -->
+                    <div class="table-card glass-panel">
+                        <div class="card-header">
+                            <h3>Detected Spreads (<span id="opp-count">0</span>)</h3>
+                            <div class="filter-pills">
+                                <button class="pill active" data-filter="ALL">All Risk</button>
+                                <button class="pill" data-filter="LOW">Low Risk Only</button>
+                            </div>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Target Event</th>
+                                        <th>Venue Leg A</th>
+                                        <th>Venue Leg B</th>
+                                        <th>Executable Size</th>
+                                        <th>Total Net Cost</th>
+                                        <th>Net Profit</th>
+                                        <th>Net ROI / APR</th>
+                                        <th>Risk Score</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="opp-table-body">
+                                    <!-- Dynamic Rows -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Side Panel: Selected Opportunity Deep-Dive & Book Depth Ladder -->
+                    <div class="depth-card glass-panel">
+                        <div class="card-header">
+                            <h3><i class="fa-solid fa-layer-group"></i> Order Book Depth Ladder</h3>
+                        </div>
+                        <div id="depth-content" class="depth-container">
+                            <div class="empty-state">
+                                <i class="fa-solid fa-hand-pointer"></i>
+                                <p>Select an opportunity row to inspect order book depth walking & fee breakdown.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- STAGE 2: EVENT MATCHING & AUDIT STUDIO -->
+            <section id="tab-matching" class="tab-pane">
+                <div class="pane-header">
+                    <div class="pane-title">
+                        <h2><i class="fa-solid fa-code-compare text-amber"></i> Event Matching & Resolution Audit Studio</h2>
+                        <p>Verify contract equivalence across venues. Human approval is required before Stage 3 marks opportunities as low-risk.</p>
+                    </div>
+                    <div class="matching-stats">
+                        <span class="stat-badge"><i class="fa-solid fa-clock"></i> Pending: <strong id="audit-pending">0</strong></span>
+                        <span class="stat-badge green"><i class="fa-solid fa-check"></i> Verified: <strong id="audit-verified">0</strong></span>
+                        <span class="stat-badge red"><i class="fa-solid fa-xmark"></i> Rejected: <strong id="audit-rejected">0</strong></span>
+                    </div>
+                </div>
+
+                <div class="glass-panel">
+                    <div class="table-responsive">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Match Score</th>
+                                    <th>Venue A (Kalshi)</th>
+                                    <th>Venue B (Polymarket / ProphetX)</th>
+                                    <th>Resolution & Expiry Risk Flags</th>
+                                    <th>Audit Status</th>
+                                    <th>Human Verification</th>
+                                </tr>
+                            </thead>
+                            <tbody id="matching-table-body">
+                                <!-- Dynamic Rows -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- STAGE 4: PAPER TRADING & EDGE REALIZATION ANALYTICS -->
+            <section id="tab-paper" class="tab-pane">
+                <div class="pane-header">
+                    <div class="pane-title">
+                        <h2><i class="fa-solid fa-flask text-emerald"></i> Paper Trading & Edge Realization Lab</h2>
+                        <p>Quantify the gap between <strong>Detected Edge</strong> at scanner time and <strong>Realized Edge</strong> after simulated execution delay and slippage.</p>
+                    </div>
+                </div>
+
+                <!-- Metrics Summary Cards -->
+                <div class="analytics-metrics-grid">
+                    <div class="metric-card glass-panel">
+                        <div class="metric-title">TOTAL PAPER TRADES</div>
+                        <div class="metric-number" id="paper-stat-total">0</div>
+                        <div class="metric-sub">Executed against depth</div>
+                    </div>
+                    <div class="metric-card glass-panel">
+                        <div class="metric-title">WIN RATE %</div>
+                        <div class="metric-number text-emerald" id="paper-stat-winrate">0%</div>
+                        <div class="metric-sub">Net profitable fills</div>
+                    </div>
+                    <div class="metric-card glass-panel">
+                        <div class="metric-title">TOTAL REALIZED PnL</div>
+                        <div class="metric-number text-emerald" id="paper-stat-realized-pnl">$0.00</div>
+                        <div class="metric-sub">Guaranteed payout - net cost</div>
+                    </div>
+                    <div class="metric-card glass-panel">
+                        <div class="metric-title">AVG EDGE REALIZATION GAP</div>
+                        <div class="metric-number text-amber" id="paper-stat-gap">0.00%</div>
+                        <div class="metric-sub">Detected ROI vs Realized ROI</div>
+                    </div>
+                </div>
+
+                <!-- Paper Trades History Table -->
+                <div class="glass-panel margin-top">
+                    <div class="card-header">
+                        <h3><i class="fa-solid fa-list-check"></i> Paper Trade Realization Ledger</h3>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Trade ID / Time</th>
+                                    <th>Market Pair</th>
+                                    <th>Target Capital</th>
+                                    <th>Detected ROI %</th>
+                                    <th>Latency Decay %</th>
+                                    <th>Realized ROI %</th>
+                                    <th>Realized Net Profit</th>
+                                    <th>Edge Gap %</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="paper-trades-body">
+                                <!-- Dynamic Rows -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- STAGE 5: PROTECTED EXECUTION ENGINE SANDBOX -->
+            <section id="tab-stage5" class="tab-pane">
+                <div class="pane-header">
+                    <div class="pane-title">
+                        <h2><i class="fa-solid fa-shield-halved text-coral"></i> Stage 5 Execution Engine (Safety Locked)</h2>
+                        <p class="text-coral">Execution is deliberately isolated. Automated order placement should only be unlocked after Stage 4 paper trading has proven reliable.</p>
+                    </div>
+                </div>
+
+                <div class="stage5-grid">
+                    <!-- Safety Requirements Checklist -->
+                    <div class="glass-panel stage5-card">
+                        <div class="card-header">
+                            <h3><i class="fa-solid fa-clipboard-check"></i> Pre-Live Checklist</h3>
+                        </div>
+                        <ul class="checklist">
+                            <li class="check-item checked">
+                                <i class="fa-solid fa-circle-check text-emerald"></i>
+                                <div>
+                                    <strong>Stage 1: Multi-Venue Ingestion Active</strong>
+                                    <p>Live REST & WebSocket order books normalized into unified schema.</p>
+                                </div>
+                            </li>
+                            <li class="check-item checked">
+                                <i class="fa-solid fa-circle-check text-emerald"></i>
+                                <div>
+                                    <strong>Stage 2: Resolution Criteria Verified</strong>
+                                    <p>Human-in-the-loop audit prevents false positives on wording edge cases.</p>
+                                </div>
+                            </li>
+                            <li class="check-item checked">
+                                <i class="fa-solid fa-circle-check text-emerald"></i>
+                                <div>
+                                    <strong>Stage 3: Depth & Fee Walking Validated</strong>
+                                    <p>Calculates true executable fill price, Kalshi taker fees, and Polygon gas.</p>
+                                </div>
+                            </li>
+                            <li class="check-item" id="chk-paper-track">
+                                <i class="fa-solid fa-circle-xmark text-coral" id="icon-paper-track"></i>
+                                <div>
+                                    <strong>Stage 4: Paper Trading Track Record Requirement</strong>
+                                    <p>Must log at least <strong>5 paper trades</strong> to validate detected vs realized edge gap. (<span id="paper-progress-count">0</span>/5 completed)</p>
+                                </div>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <!-- Security & Kill Switch Controls -->
+                    <div class="glass-panel stage5-card">
+                        <div class="card-header">
+                            <h3><i class="fa-solid fa-lock text-coral"></i> Execution Safeguards & Sandbox</h3>
+                        </div>
+
+                        <div class="security-banner">
+                            <i class="fa-solid fa-triangle-exclamation"></i>
+                            <div>
+                                <strong>Credentials Protection Notice</strong>
+                                <p>API keys, private keys, and wallet seeds are kept strictly isolated from autonomous agent commits.</p>
+                            </div>
+                        </div>
+
+                        <div class="control-group">
+                            <label>Execution Mode:</label>
+                            <div class="mode-badge" id="mode-badge-status">DRY-RUN SIMULATION MODE ONLY</div>
+                        </div>
+
+                        <div class="control-group">
+                            <label for="input-max-slippage">Maximum Allowed Slippage Tolerance:</label>
+                            <input type="text" id="input-max-slippage" value="0.5%" readonly class="form-input">
+                        </div>
+
+                        <div class="stage5-actions">
+                            <button id="btn-unlock-stage5" class="btn btn-coral" disabled>
+                                <i class="fa-solid fa-key"></i> Unlock Stage 5 Execution Engine
+                            </button>
+                            <button id="btn-kill-switch" class="btn btn-danger">
+                                <i class="fa-solid fa-power-off"></i> Emergency System Kill Switch
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Main JavaScript Controller -->
+    <script src="js/app.js"></script>
+</body>
+</html>
